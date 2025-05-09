@@ -1,15 +1,23 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getDiaryEntries, deleteDiaryEntry, DiaryEntry } from "@/services/diaryService";
+import { Volume2, VolumeX } from "lucide-react";
 
 const TimelinePage = () => {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [speakingEntryId, setSpeakingEntryId] = useState<string | null>(null);
+  const synthRef = useRef<SpeechSynthesis | null>(null);
 
   useEffect(() => {
+    // Initialize speech synthesis
+    if ('speechSynthesis' in window) {
+      synthRef.current = window.speechSynthesis;
+    }
+    
     // Load diary entries from local storage
     const loadEntries = () => {
       setIsLoading(true);
@@ -27,17 +35,77 @@ const TimelinePage = () => {
     };
 
     loadEntries();
+    
+    return () => {
+      if (synthRef.current) {
+        synthRef.current.cancel();
+      }
+    };
   }, []);
 
   const handleDeleteEntry = (id: string) => {
     try {
       deleteDiaryEntry(id);
       setEntries(entries.filter(entry => entry.id !== id));
+      
+      // Stop speaking if the deleted entry was being read aloud
+      if (speakingEntryId === id && synthRef.current) {
+        synthRef.current.cancel();
+        setSpeakingEntryId(null);
+      }
+      
       toast.success("Entry deleted successfully");
     } catch (error) {
       console.error("Failed to delete entry:", error);
       toast.error("Failed to delete the entry");
     }
+  };
+  
+  const toggleSpeakEntry = (entry: DiaryEntry) => {
+    if (!synthRef.current) {
+      toast.error("Speech synthesis is not supported in your browser");
+      return;
+    }
+    
+    // If already speaking this entry, stop it
+    if (speakingEntryId === entry.id) {
+      synthRef.current.cancel();
+      setSpeakingEntryId(null);
+      return;
+    }
+    
+    // Stop any current speech
+    synthRef.current.cancel();
+    
+    // Create and configure utterance
+    const utterance = new SpeechSynthesisUtterance(entry.content);
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+    
+    // Try to use a nice voice if available
+    let voices = synthRef.current.getVoices();
+    let preferredVoice = voices.find(voice => voice.name.includes('Google') || voice.name.includes('Samantha'));
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+    
+    // Set up event handlers
+    utterance.onstart = () => {
+      setSpeakingEntryId(entry.id);
+    };
+    
+    utterance.onend = () => {
+      setSpeakingEntryId(null);
+    };
+    
+    utterance.onerror = (error) => {
+      console.error("Speech synthesis error:", error);
+      setSpeakingEntryId(null);
+      toast.error("Failed to read the entry aloud");
+    };
+    
+    // Start speaking
+    synthRef.current.speak(utterance);
   };
 
   // Helper function to format date
@@ -64,6 +132,8 @@ const TimelinePage = () => {
         return '😴';
       case 'nervous':
         return '😰';
+      case 'relaxed':
+        return '😌';
       default:
         return '😐';
     }
@@ -110,17 +180,29 @@ const TimelinePage = () => {
                     {formatDate(entry.date)}
                   </span>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => handleDeleteEntry(entry.id)}
-                  className="hover:bg-red-100 hover:text-red-500"
-                >
-                  Delete
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => toggleSpeakEntry(entry)}
+                    className={speakingEntryId === entry.id ? "text-diary-primary" : "text-foreground/70"}
+                  >
+                    {speakingEntryId === entry.id ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleDeleteEntry(entry.id)}
+                    className="hover:bg-red-100 hover:text-red-500"
+                  >
+                    Delete
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <p className="whitespace-pre-wrap">{entry.content}</p>
+                <p className={`whitespace-pre-wrap ${speakingEntryId === entry.id ? "bg-diary-secondary/10 p-2 rounded" : ""}`}>
+                  {entry.content}
+                </p>
               </CardContent>
             </Card>
           ))}
