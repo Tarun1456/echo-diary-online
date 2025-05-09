@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import DiaryAvatar from "@/components/DiaryAvatar";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, MicOff, Smile, Frown, Angry, BookOpen } from "lucide-react";
 import { generateDiaryEntry, saveDiaryEntry, detectMood } from "@/services/diaryService";
 
 // Use a more specific type reference that's recognized by TypeScript
@@ -19,6 +19,7 @@ const DiaryPage = () => {
   const [generatedEntry, setGeneratedEntry] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentMood, setCurrentMood] = useState<string>("neutral");
   
   // Use the correct type for the speech recognition reference
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
@@ -52,6 +53,9 @@ const DiaryPage = () => {
       synthRef.current = window.speechSynthesis;
     }
     
+    // Preload AI model by sending a small request at initialization
+    preloadAI();
+    
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
@@ -61,6 +65,17 @@ const DiaryPage = () => {
       }
     };
   }, []);
+
+  // Function to preload AI by making a small request
+  const preloadAI = async () => {
+    try {
+      // Make a minimal request to warm up the AI
+      await generateDiaryEntry("init");
+      console.log("AI preloaded successfully");
+    } catch (error) {
+      console.error("Failed to preload AI:", error);
+    }
+  };
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
@@ -123,6 +138,11 @@ const DiaryPage = () => {
     try {
       const entry = await generateDiaryEntry(userInput);
       setGeneratedEntry(entry);
+      
+      // Detect mood from combined input and entry
+      const detectedMood = detectMood(userInput + " " + entry);
+      setCurrentMood(detectedMood);
+      
       toast.success("Entry generated successfully!");
       
       // Generate a welcome response to speak
@@ -146,7 +166,7 @@ const DiaryPage = () => {
       id: uuidv4(),
       date: new Date().toISOString(),
       content: generatedEntry,
-      mood: detectMood(userInput + " " + generatedEntry),
+      mood: currentMood,
     };
 
     saveDiaryEntry(entry);
@@ -158,6 +178,31 @@ const DiaryPage = () => {
     // Clear the form
     setUserInput("");
     setGeneratedEntry("");
+    setCurrentMood("neutral");
+  };
+
+  // Function to render the appropriate mood icon
+  const renderMoodIcon = () => {
+    switch (currentMood) {
+      case "happy":
+        return <Smile className="h-6 w-6 text-green-500" />;
+      case "sad":
+        return <Frown className="h-6 w-6 text-blue-500" />;
+      case "angry":
+        return <Angry className="h-6 w-6 text-red-500" />;
+      case "nervous":
+        return <Frown className="h-6 w-6 text-yellow-500" />;
+      default:
+        return <BookOpen className="h-6 w-6 text-gray-500" />;
+    }
+  };
+
+  // Wallpaper background style
+  const wallpaperStyle = {
+    backgroundImage: "url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80')",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
   };
 
   return (
@@ -201,37 +246,53 @@ const DiaryPage = () => {
           </div>
         </div>
 
-        <div className="diary-card h-full flex flex-col">
-          <h2 className="text-xl font-medium mb-2">Your Echo Diary Entry</h2>
+        <div 
+          className="diary-card h-full flex flex-col overflow-hidden relative"
+          style={wallpaperStyle}
+        >
+          {/* Semi-transparent overlay to ensure text readability over the wallpaper */}
+          <div className="absolute inset-0 bg-white/85 dark:bg-gray-900/85"></div>
           
-          {isProcessing ? (
-            <div className="flex-1 flex items-center justify-center text-foreground/70">
-              <div className="flex flex-col items-center">
-                <div className="flex gap-2 mb-2">
-                  <div className="w-2 h-2 rounded-full bg-diary-primary animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 rounded-full bg-diary-primary animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 rounded-full bg-diary-primary animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          <div className="relative z-10 h-full flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xl font-medium">Your Echo Diary Entry</h2>
+              {currentMood !== "neutral" && generatedEntry && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Mood:</span>
+                  {renderMoodIcon()}
                 </div>
-                <p>Creating your entry...</p>
-              </div>
+              )}
             </div>
-          ) : generatedEntry ? (
-            <>
-              <div className="flex-1 p-4 bg-diary-secondary/10 rounded-lg mb-4 overflow-y-auto">
-                <p className="whitespace-pre-wrap">{generatedEntry}</p>
+            
+            {isProcessing ? (
+              <div className="flex-1 flex items-center justify-center text-foreground/70">
+                <div className="flex flex-col items-center">
+                  <div className="flex gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-diary-primary animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 rounded-full bg-diary-primary animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 rounded-full bg-diary-primary animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                  <p>Creating your entry...</p>
+                </div>
               </div>
-              <Button 
-                onClick={saveEntry} 
-                className="bg-diary-primary hover:bg-diary-primary/90"
-              >
-                Save Entry
-              </Button>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-foreground/70">
-              <p>Your entry will appear here after generation</p>
-            </div>
-          )}
+            ) : generatedEntry ? (
+              <>
+                <div className="flex-1 p-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg mb-4 overflow-y-auto">
+                  <p className="whitespace-pre-wrap">{generatedEntry}</p>
+                </div>
+                <Button 
+                  onClick={saveEntry} 
+                  className="bg-diary-primary hover:bg-diary-primary/90"
+                >
+                  Save Entry
+                </Button>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-foreground/70">
+                <p>Your entry will appear here after generation</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

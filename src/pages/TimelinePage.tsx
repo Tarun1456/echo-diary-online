@@ -1,10 +1,9 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getDiaryEntries, deleteDiaryEntry, DiaryEntry } from "@/services/diaryService";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, Smile, Frown, Angry, BookOpen } from "lucide-react";
 
 const TimelinePage = () => {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -125,17 +124,17 @@ const TimelinePage = () => {
   const getMoodEmoji = (mood?: string) => {
     switch (mood) {
       case 'happy':
-        return '😊';
+        return <Smile className="h-5 w-5 text-green-500" />;
       case 'sad':
-        return '😢';
-      case 'tired':
-        return '😴';
+        return <Frown className="h-5 w-5 text-blue-500" />;
+      case 'angry':
+        return <Angry className="h-5 w-5 text-red-500" />;
       case 'nervous':
-        return '😰';
+        return <Frown className="h-5 w-5 text-yellow-500" />;
       case 'relaxed':
-        return '😌';
+        return <Smile className="h-5 w-5 text-teal-500" />;
       default:
-        return '😐';
+        return <BookOpen className="h-5 w-5 text-gray-500" />;
     }
   };
 
