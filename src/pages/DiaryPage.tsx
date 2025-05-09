@@ -8,6 +8,11 @@ import DiaryAvatar from "@/components/DiaryAvatar";
 import { Mic, MicOff } from "lucide-react";
 import { generateDiaryEntry, saveDiaryEntry, detectMood } from "@/services/diaryService";
 
+// Use a more specific type reference that's recognized by TypeScript
+type SpeechRecognitionInstance = typeof window.SpeechRecognition extends {
+  prototype: infer R;
+} ? R : never;
+
 const DiaryPage = () => {
   const [userInput, setUserInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -15,7 +20,8 @@ const DiaryPage = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // Use the correct type for the speech recognition reference
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
   useEffect(() => {
